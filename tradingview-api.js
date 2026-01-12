@@ -1,6 +1,7 @@
 /**
  * TradingView Data Provider
  * Recupera dati reali in tempo reale da TradingView
+ * Versione 3.1 - Con CORS proxy per evitare blocchi
  */
 
 class TradingViewAPI {
@@ -36,101 +37,89 @@ class TradingViewAPI {
         };
 
         this.baseURL = 'https://query1.finance.yahoo.com/v8/finance/chart';
-        this.newsURL = 'https://newsapi.org/v2/everything';
+        this.corsProxies = [
+            'https://api.allorigins.win/raw?url=',
+            'https://corsproxy.io/?',
+            'https://cors-anywhere.herokuapp.com/'
+        ];
     }
 
     /**
-     * Recupera dati reali da Yahoo Finance (alternativa a TradingView)
-     * Yahoo Finance ha CORS abilitato e fornisce dati reali
+     * Recupera dati reali da Yahoo Finance usando CORS proxy
      */
     async fetchRealData(symbol) {
         try {
             console.log(`[TradingView] Recupero dati reali per ${symbol}...`);
 
-            // Usa Yahoo Finance con User-Agent
-            const response = await fetch(
-                `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=6mo`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=6mo`;
+            
+            // Prova con CORS proxy
+            for (const proxy of this.corsProxies) {
+                try {
+                    let proxyUrl;
+                    if (proxy.includes('allorigins')) {
+                        proxyUrl = proxy + encodeURIComponent(yahooUrl);
+                    } else if (proxy.includes('corsproxy')) {
+                        proxyUrl = proxy + encodeURIComponent(yahooUrl);
+                    } else {
+                        proxyUrl = proxy + yahooUrl;
                     }
-                }
-            );
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                    console.log(`[TradingView] Tentativo con proxy: ${proxy.split('/')[2]}...`);
+                    
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const result = data.chart.result[0];
+                        const quote = result.quote[0];
+
+                        // Estrai i dati
+                        const closes = quote.close;
+                        const highs = quote.high;
+                        const lows = quote.low;
+                        const volumes = quote.volume;
+                        const opens = quote.open;
+
+                        // Calcola la variazione giornaliera
+                        const currentPrice = closes[closes.length - 1];
+                        const previousClose = closes[closes.length - 2] || closes[0];
+                        const change = currentPrice - previousClose;
+                        const changePercent = (change / previousClose) * 100;
+
+                        console.log(`[TradingView] ✓ Dati reali ricevuti per ${symbol}: ${currentPrice}`);
+
+                        return {
+                            symbol,
+                            currentPrice: Math.round(currentPrice * 100) / 100,
+                            change: Math.round(change * 100) / 100,
+                            changePercent: Math.round(changePercent * 100) / 100,
+                            close: closes.filter(c => c !== null),
+                            high: highs.filter(h => h !== null),
+                            low: lows.filter(l => l !== null),
+                            volume: volumes.filter(v => v !== null),
+                            open: opens.filter(o => o !== null),
+                            timestamp: result.timestamp,
+                            isRealData: true
+                        };
+                    }
+                } catch (error) {
+                    console.warn(`[TradingView] Proxy fallito, provo il prossimo...`, error.message);
+                    continue;
+                }
             }
 
-            const data = await response.json();
-            const result = data.chart.result[0];
-            const quote = result.quote[0];
-
-            // Estrai i dati
-            const timestamps = result.timestamp;
-            const closes = quote.close;
-            const highs = quote.high;
-            const lows = quote.low;
-            const volumes = quote.volume;
-            const opens = quote.open;
-
-            // Calcola la variazione giornaliera
-            const currentPrice = closes[closes.length - 1];
-            const previousClose = closes[closes.length - 2] || closes[0];
-            const change = currentPrice - previousClose;
-            const changePercent = (change / previousClose) * 100;
-
-            console.log(`[TradingView] ✓ Dati reali ricevuti per ${symbol}: ${currentPrice}`);
-
-            return {
-                symbol,
-                currentPrice: Math.round(currentPrice * 100) / 100,
-                change: Math.round(change * 100) / 100,
-                changePercent: Math.round(changePercent * 100) / 100,
-                close: closes.filter(c => c !== null),
-                high: highs.filter(h => h !== null),
-                low: lows.filter(l => l !== null),
-                volume: volumes.filter(v => v !== null),
-                open: opens.filter(o => o !== null),
-                timestamp: timestamps,
-                isRealData: true
-            };
+            console.warn(`[TradingView] Tutti i proxy falliti per ${symbol}`);
+            return null;
         } catch (error) {
             console.error(`[TradingView] Errore recupero dati per ${symbol}:`, error);
             return null;
         }
-    }
-
-    /**
-     * Recupera dati da TradingView tramite Lightweight Charts API
-     * (Metodo alternativo con dati in tempo reale)
-     */
-    async fetchFromTradingView(symbol) {
-        try {
-            const tvSymbol = this.symbolMap[symbol] || symbol;
-            console.log(`[TradingView] Tentativo con TradingView: ${tvSymbol}`);
-
-            // TradingView Lightweight Charts API
-            const response = await fetch(
-                `https://api.tradingview.com/api/v1/symbols/${tvSymbol}/quote`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                }
-            );
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log(`[TradingView] ✓ Dati TradingView ricevuti per ${symbol}`);
-                return data;
-            }
-        } catch (error) {
-            console.warn(`[TradingView] TradingView API non disponibile:`, error);
-        }
-
-        return null;
     }
 
     /**
@@ -140,35 +129,49 @@ class TradingViewAPI {
         try {
             console.log(`[TradingView] Recupero dati storici per ${symbol} (${range})...`);
 
-            const response = await fetch(
-                `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
+            
+            for (const proxy of this.corsProxies) {
+                try {
+                    let proxyUrl;
+                    if (proxy.includes('allorigins')) {
+                        proxyUrl = proxy + encodeURIComponent(yahooUrl);
+                    } else if (proxy.includes('corsproxy')) {
+                        proxyUrl = proxy + encodeURIComponent(yahooUrl);
+                    } else {
+                        proxyUrl = proxy + yahooUrl;
                     }
-                }
-            );
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const result = data.chart.result[0];
+                        const quote = result.quote[0];
+
+                        const historicalData = {
+                            close: quote.close.filter(c => c !== null),
+                            high: quote.high.filter(h => h !== null),
+                            low: quote.low.filter(l => l !== null),
+                            volume: quote.volume.filter(v => v !== null),
+                            open: quote.open.filter(o => o !== null),
+                            timestamp: result.timestamp
+                        };
+
+                        console.log(`[TradingView] ✓ ${historicalData.close.length} candele storiche recuperate`);
+                        return historicalData;
+                    }
+                } catch (error) {
+                    continue;
+                }
             }
 
-            const data = await response.json();
-            const result = data.chart.result[0];
-            const quote = result.quote[0];
-
-            const historicalData = {
-                close: quote.close.filter(c => c !== null),
-                high: quote.high.filter(h => h !== null),
-                low: quote.low.filter(l => l !== null),
-                volume: quote.volume.filter(v => v !== null),
-                open: quote.open.filter(o => o !== null),
-                timestamp: result.timestamp
-            };
-
-            console.log(`[TradingView] ✓ ${historicalData.close.length} candele storiche recuperate`);
-            return historicalData;
+            return null;
         } catch (error) {
             console.error(`[TradingView] Errore dati storici per ${symbol}:`, error);
             return null;
@@ -182,31 +185,45 @@ class TradingViewAPI {
         try {
             console.log(`[TradingView] Recupero dati intraday per ${symbol}...`);
 
-            const response = await fetch(
-                `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1h&range=5d`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1h&range=5d`;
+            
+            for (const proxy of this.corsProxies) {
+                try {
+                    let proxyUrl;
+                    if (proxy.includes('allorigins')) {
+                        proxyUrl = proxy + encodeURIComponent(yahooUrl);
+                    } else if (proxy.includes('corsproxy')) {
+                        proxyUrl = proxy + encodeURIComponent(yahooUrl);
+                    } else {
+                        proxyUrl = proxy + yahooUrl;
                     }
-                }
-            );
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                    const response = await fetch(proxyUrl, {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const result = data.chart.result[0];
+                        const quote = result.quote[0];
+
+                        return {
+                            close: quote.close.filter(c => c !== null),
+                            high: quote.high.filter(h => h !== null),
+                            low: quote.low.filter(l => l !== null),
+                            volume: quote.volume.filter(v => v !== null),
+                            timestamp: result.timestamp
+                        };
+                    }
+                } catch (error) {
+                    continue;
+                }
             }
 
-            const data = await response.json();
-            const result = data.chart.result[0];
-            const quote = result.quote[0];
-
-            return {
-                close: quote.close.filter(c => c !== null),
-                high: quote.high.filter(h => h !== null),
-                low: quote.low.filter(l => l !== null),
-                volume: quote.volume.filter(v => v !== null),
-                timestamp: result.timestamp
-            };
+            return null;
         } catch (error) {
             console.error(`[TradingView] Errore dati intraday per ${symbol}:`, error);
             return null;
@@ -227,7 +244,6 @@ class TradingViewAPI {
                 if (data) {
                     quotes[symbol] = data;
                 }
-                // Delay per evitare rate limiting
                 await new Promise(resolve => setTimeout(resolve, 200));
             }
 
@@ -246,24 +262,26 @@ class TradingViewAPI {
         try {
             console.log(`[TradingView] Recupero notizie per ${symbol}...`);
 
-            // Prova con NewsAPI
-            const response = await fetch(
-                `https://newsapi.org/v2/everything?q=${symbol}&sortBy=publishedAt&language=it&pageSize=${limit}&apiKey=demo`,
-                { mode: 'cors' }
-            );
+            try {
+                const response = await fetch(
+                    `https://newsapi.org/v2/everything?q=${symbol}&sortBy=publishedAt&language=it&pageSize=${limit}&apiKey=demo`,
+                    { mode: 'cors' }
+                );
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.articles && data.articles.length > 0) {
-                    console.log(`[TradingView] ✓ ${data.articles.length} notizie recuperate`);
-                    return data.articles;
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.articles && data.articles.length > 0) {
+                        console.log(`[TradingView] ✓ ${data.articles.length} notizie recuperate`);
+                        return data.articles;
+                    }
                 }
+            } catch (error) {
+                console.warn(`[TradingView] Errore notizie:`, error);
             }
         } catch (error) {
             console.warn(`[TradingView] Errore notizie:`, error);
         }
 
-        // Fallback: notizie simulate
         return this.generateMockNews(symbol, limit);
     }
 
@@ -303,14 +321,14 @@ class TradingViewAPI {
         const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
         const volatility = Math.sqrt(variance);
 
-        return Math.round(volatility * 10000) / 100; // Percentuale
+        return Math.round(volatility * 10000) / 100;
     }
 
     /**
      * Calcola supporto e resistenza
      */
     calculateSupportResistance(closes, highs, lows) {
-        const recent = closes.slice(-20); // Ultimi 20 giorni
+        const recent = closes.slice(-20);
         const recentHighs = highs.slice(-20);
         const recentLows = lows.slice(-20);
 
