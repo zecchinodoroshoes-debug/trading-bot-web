@@ -161,40 +161,26 @@ async function analyzeSymbol(symbol) {
 }
 
 /**
- * Recupera dati di mercato reali
+ * Recupera dati di mercato reali da Yahoo Finance / TradingView
  */
 async function fetchMarketData(symbol) {
     try {
-        console.log(`Recupero dati per ${symbol}...`);
+        console.log(`[Bot] Recupero dati reali per ${symbol}...`);
         
-        // Prova con Yahoo Finance
-        const response = await fetch(
-            `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${symbol}?modules=price`,
-            { 
-                method: 'GET',
-                headers: { 
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            }
-        );
-
-        if (response.ok) {
-            const data = await response.json();
-            const price = data.quoteSummary.result[0].price;
-            
-            // Genera dati storici realistici basati sul prezzo attuale
-            return generateRealisticData(
-                price.regularMarketPrice,
-                price.regularMarketChange,
-                price.regularMarketChangePercent
-            );
+        // Usa TradingView API (che accede a Yahoo Finance)
+        const data = await tradingViewAPI.fetchRealData(symbol);
+        
+        if (data && data.close.length >= 20) {
+            console.log(`[Bot] ✓ Dati reali ricevuti per ${symbol}`);
+            return data;
+        } else {
+            console.warn(`[Bot] Dati insufficienti per ${symbol}`);
+            return null;
         }
     } catch (error) {
-        console.warn(`Errore Yahoo Finance per ${symbol}:`, error);
+        console.error(`[Bot] Errore recupero dati per ${symbol}:`, error);
+        return null;
     }
-
-    // Fallback: genera dati realistici
-    return generateRealisticData();
 }
 
 /**
