@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trading Bot - Analisi Tecnica Multi-Strumento</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <h1>🤖 AI Trading Bot</h1>
+                    <p>Analisi Tecnica Multi-Strumento in Tempo Reale</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="analyzeBtn" onclick="startAnalysis()">
+                        <span class="btn-icon">⚡</span> Analizza Ora
+                    </button>
+                    <button class="btn btn-secondary" id="exportBtn" onclick="exportData()" style="display:none;">
+                        <span class="btn-icon">📥</span> Esporta
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="loading-state" style="display:none;">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <h2>Analisi in corso...</h2>
+                <p id="loadingText">Recupero dati di mercato</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p id="progressText">0/23 strumenti analizzati</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Summary Cards -->
+            <section class="summary-section">
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="card-icon">📊</div>
+                        <h3>Strumenti</h3>
+                        <div class="card-value" id="totalInstruments">-</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon">🟢🟢</div>
+                        <h3>Strong Buy</h3>
+                        <div class="card-value" id="strongBuyCount">-</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon">🟢</div>
+                        <h3>Buy</h3>
+                        <div class="card-value" id="buyCount">-</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon">🟡</div>
+                        <h3>Hold</h3>
+                        <div class="card-value" id="holdCount">-</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon">🔹</div>
+                        <h3>Sell</h3>
+                        <div class="card-value" id="sellCount">-</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="card-icon">📈</div>
+                        <h3>Confidenza Media</h3>
+                        <div class="card-value" id="avgConfidence">-</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Controls -->
+            <section class="controls-section">
+                <div class="search-container">
+                    <input type="text" id="searchInput" class="search-box" placeholder="🔍 Cerca strumento..." onkeyup="filterTable()">
+                    <select id="filterSelect" class="filter-select" onchange="filterTable()">
+                        <option value="">Tutti</option>
+                        <option value="STRONG BUY">🟢🟢 Strong Buy</option>
+                        <option value="BUY">🟢 Buy</option>
+                        <option value="HOLD">🟡 Hold</option>
+                        <option value="SELL">🔹 Sell</option>
+                        <option value="STRONG SELL">🔴🔴 Strong Sell</option>
+                    </select>
+                </div>
+                <div class="view-controls">
+                    <button class="view-btn active" onclick="switchView('table')" title="Vista Tabella">📋</button>
+                    <button class="view-btn" onclick="switchView('cards')" title="Vista Card">🎴</button>
+                </div>
+            </section>
+
+            <!-- Table View -->
+            <section class="table-section" id="tableView">
+                <div class="table-container">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Strumento</th>
+                                <th>Prezzo</th>
+                                <th>Trend</th>
+                                <th>Azione</th>
+                                <th>Confidenza</th>
+                                <th>Rischio</th>
+                                <th>Entry</th>
+                                <th>Stop Loss</th>
+                                <th>TP1</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <tr>
+                                <td colspan="9" style="text-align: center; padding: 40px; color: #999;">
+                                    Clicca "Analizza Ora" per avviare l'analisi
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Cards View -->
+            <section class="cards-section" id="cardsView" style="display:none;">
+                <div class="cards-grid" id="cardsGrid"></div>
+            </section>
+
+            <!-- Detail Modal -->
+            <div class="modal" id="detailModal">
+                <div class="modal-content">
+                    <span class="modal-close" onclick="closeModal()">&times;</span>
+                    <div id="modalBody"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>⚠️ Disclaimer: Questo strumento è solo a scopo educativo. Non costituisce consulenza finanziaria.</p>
+            <p>© 2026 AI Trading Bot | Dati da Yahoo Finance</p>
+        </footer>
+    </div>
+
+    <script src="indicators.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
